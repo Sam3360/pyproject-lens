@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyproject-lens"
+version = "0.1.0"
+description = "A small health scanner for Python projects."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["tomli; python_version < '3.11'"]
+license = {text = "MIT"}
+authors = [{name = "Sam"}]
+keywords = ["python", "cli", "project", "pyproject", "health"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+
+[project.scripts]
+pyproject-lens = "pyproject_lens.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Sam3360/pyproject-lens"
+Repository = "https://github.com/Sam3360/pyproject-lens"
+Issues = "https://github.com/Sam3360/pyproject-lens/issues"
+
+[tool.pyproject-lens]
+minimum_score = 0
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
