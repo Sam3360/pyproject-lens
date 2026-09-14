@@ -1,6 +1,6 @@
 # pyproject-lens
 
-A small, free health scanner for Python projects. Point it at a folder and it checks the basics: packaging metadata, imports versus declared dependencies, Python-version claims, project layout, and Git hygiene.
+A small, free health scanner for Python projects. Point it at a folder and it checks the basics: packaging metadata, imports versus declared dependencies, Python-version claims, project layout, tests, obvious security footguns, documentation, and Git hygiene.
 
 It is built for the first ten seconds of project review — not to replace Ruff, pytest, Bandit, or a human code review.
 
@@ -31,14 +31,17 @@ print(report.to_json())
 
 ## What the score means
 
-Each of the five sections starts at 100. Detected issues reduce only the relevant section, and the project score is the rounded average. The rules are deliberately simple and visible in `src/pyproject_lens/analyzers.py`; it is a conversation starter, not a grade.
+Each section starts at 100. Detected issues reduce only the relevant section, and the project score is the rounded average. The rules are deliberately simple and visible in `src/pyproject_lens/analyzers.py`; it is a conversation starter, not a grade.
 
-## Scope for version 0.1
+## What it checks
 
 - Packaging: `pyproject.toml`, project name, Python version, README
 - Dependencies: direct source imports compared with `project.dependencies`
 - Compatibility: detects `match/case` used with a Python claim below 3.10
 - Structure: `src/`, packages, root modules, and tests directory
+- Testing: test file presence and a rough source-to-test-file signal — not coverage
+- Security: possible hard-coded secrets, `eval`/`exec`, and `shell=True`
+- Documentation: README, install/usage wording, license, and contribution guide
 - Repository hygiene: `.gitignore` and uncommitted changes
 
 Everything is free and open source under the MIT license.

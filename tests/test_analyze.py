@@ -15,9 +15,27 @@ class AnalyzeTests(unittest.TestCase):
             (root / "src" / "demo" / "__init__.py").write_text("")
             report = analyze(root)
         self.assertLessEqual(report.score, 100)
-        self.assertEqual([section.name for section in report.sections], ["Packaging", "Dependencies", "Python compatibility", "Project structure", "Repository hygiene"])
+        self.assertEqual([section.name for section in report.sections], ["Packaging", "Dependencies", "Python compatibility", "Project structure", "Testing", "Security", "Documentation", "Repository hygiene"])
 
     def test_json_is_valid(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             report = analyze(temporary)
         self.assertIn('"score"', report.to_json())
+
+    def test_security_reports_hard_coded_secret(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "app.py").write_text('API_KEY = "not-a-real-key"\n')
+            report = analyze(root)
+        security = next(section for section in report.sections if section.name == "Security")
+        self.assertEqual(security.score, 70)
+        self.assertIn("hard-coded secret", security.findings[0].message)
+
+    def test_testing_does_not_claim_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "app.py").write_text("def run(): pass\n")
+            report = analyze(root)
+        testing = next(section for section in report.sections if section.name == "Testing")
+        self.assertEqual(testing.score, 55)
+        self.assertIn("No test files", testing.findings[0].message)

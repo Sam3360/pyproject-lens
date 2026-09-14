@@ -24,6 +24,11 @@ def _python_files(root: Path) -> list[Path]:
     return [path for path in root.rglob("*.py") if not any(part in SKIP_DIRS for part in path.parts)]
 
 
+def _source_files(root: Path, files: list[Path]) -> list[Path]:
+    """Return project code, leaving test-only imports out of dependency checks."""
+    return [path for path in files if "tests" not in path.relative_to(root).parts]
+
+
 def _read_toml(path: Path) -> dict[str, Any]:
     try:
         with path.open("rb") as handle:
@@ -132,6 +137,78 @@ def _structure(root: Path, files: list[Path]) -> Section:
     return section
 
 
+def _testing(root: Path, files: list[Path]) -> Section:
+    section = Section("Testing")
+    test_files = [path for path in files if "tests" in path.relative_to(root).parts or path.name.startswith("test_") or path.name.endswith("_test.py")]
+    source_files = [path for path in _source_files(root, files) if path.name != "__init__.py"]
+    if not test_files:
+        section.score = 55
+        section.add("warning", "No test files detected.", "Add a few test_*.py files for the code users rely on.")
+        return section
+    if not (root / "tests").is_dir():
+        section.score -= 10
+        section.add("info", "Tests were found outside a tests/ directory.", "A tests/ directory makes the project easier to navigate.")
+    if source_files and len(test_files) < max(1, len(source_files) // 3):
+        section.score -= 20
+        section.add("info", f"{len(test_files)} test file(s) for {len(source_files)} source file(s).", "This is not coverage; consider adding tests around the most important modules.")
+    return section
+
+
+SECRET_NAMES = re.compile(r"(?:password|passwd|secret|api[_-]?key|access[_-]?token|private[_-]?key)", re.IGNORECASE)
+
+
+def _security(root: Path, files: list[Path]) -> Section:
+    section = Section("Security")
+    for file in _source_files(root, files):
+        try:
+            tree = ast.parse(file.read_text(encoding="utf-8"), filename=str(file))
+        except (OSError, UnicodeDecodeError, SyntaxError):
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                value = node.value
+                names = [target.id for target in targets if isinstance(target, ast.Name)]
+                if isinstance(value, ast.Constant) and isinstance(value.value, str) and len(value.value) >= 8 and any(SECRET_NAMES.search(name) for name in names):
+                    section.score -= 30
+                    section.add("warning", "Possible hard-coded secret detected.", "Move it to an environment variable and rotate it if it is real.", f"{file.relative_to(root)}:{node.lineno}")
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in {"eval", "exec"}:
+                section.score -= 20
+                section.add("warning", f"{node.func.id}() detected.", "Avoid executing dynamic code unless the input is completely trusted.", f"{file.relative_to(root)}:{node.lineno}")
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in {"run", "call", "Popen"}:
+                if any(keyword.arg == "shell" and isinstance(keyword.value, ast.Constant) and keyword.value.value is True for keyword in node.keywords):
+                    section.score -= 15
+                    section.add("warning", "subprocess call with shell=True detected.", "Prefer argument lists and validate any input passed to a shell.", f"{file.relative_to(root)}:{node.lineno}")
+    if (root / ".env").exists() and not (root / ".gitignore").exists():
+        section.score -= 15
+        section.add("warning", ".env exists and there is no .gitignore.", "Keep environment files out of version control.", ".env")
+    section.score = max(0, section.score)
+    return section
+
+
+def _documentation(root: Path) -> Section:
+    section = Section("Documentation")
+    readme = root / "README.md"
+    if not readme.exists():
+        section.score = 45
+        section.add("warning", "No README.md found.", "Add a short introduction, install command, and usage example.")
+        return section
+    text = readme.read_text(encoding="utf-8", errors="replace").lower()
+    if not any(word in text for word in ("install", "pip install")):
+        section.score -= 20
+        section.add("warning", "README has no detected installation instructions.", "Show the shortest install command.", "README.md")
+    if not any(word in text for word in ("usage", "quick start", "example")):
+        section.score -= 20
+        section.add("warning", "README has no detected usage example.", "Show one small command or code example.", "README.md")
+    if not any((root / name).exists() for name in ("LICENSE", "LICENSE.md", "LICENSE.txt")):
+        section.score -= 15
+        section.add("warning", "No license file found.", "Add a license so people know how they may use the project.")
+    if not any((root / name).exists() for name in ("CONTRIBUTING.md", "CONTRIBUTING.rst")):
+        section.score -= 10
+        section.add("info", "No contribution guide found.", "A short CONTRIBUTING.md helps first-time contributors.")
+    return section
+
+
 def _git_health(root: Path) -> Section:
     section = Section("Repository hygiene")
     if not (root / ".git").exists():
@@ -159,5 +236,15 @@ def analyze(path: str | Path = ".") -> Report:
         raise ValueError(f"Not a directory: {root}")
     files = _python_files(root)
     config = _read_toml(root / "pyproject.toml")
-    sections = [_packaging(root, config), _dependencies(root, config, files), _compatibility(config, files), _structure(root, files), _git_health(root)]
+    source = _source_files(root, files)
+    sections = [
+        _packaging(root, config),
+        _dependencies(root, config, source),
+        _compatibility(config, source),
+        _structure(root, files),
+        _testing(root, files),
+        _security(root, files),
+        _documentation(root),
+        _git_health(root),
+    ]
     return Report(path=root, sections=sections, files_scanned=len(files))
