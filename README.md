@@ -16,6 +16,7 @@ pip install pyproject-lens
 pyproject-lens .
 pyproject-lens ./another-project --json report.json
 pyproject-lens . --markdown report.md
+pyproject-lens . --html report.html
 pyproject-lens . --ci --minimum-score 75
 ```
 
@@ -43,6 +44,7 @@ Each section starts at 100. Detected issues reduce only the relevant section, an
 - Security: possible hard-coded secrets, `eval`/`exec`, and `shell=True`
 - Documentation: README, install/usage wording, license, and contribution guide
 - Repository hygiene: `.gitignore` and uncommitted changes
+- Reports: terminal, JSON, Markdown, and a standalone HTML file
 
 Everything is free and open source under the MIT license.
 

@@ -32,6 +32,7 @@ def main(args: list[str] | None = None) -> int:
     out = p.add_mutually_exclusive_group()
     out.add_argument("--json", metavar="FILE", help="write a JSON report to FILE; use - for stdout")
     out.add_argument("--markdown", metavar="FILE", help="write a Markdown report to FILE; use - for stdout")
+    out.add_argument("--html", metavar="FILE", help="write a standalone HTML report to FILE")
     p.add_argument("--ci", action="store_true", help="return an error if minimum_score is not met")
     p.add_argument("--minimum-score", type=int, help="score needed for --ci (overrides pyproject.toml)")
     ns = p.parse_args(args)
@@ -47,6 +48,9 @@ def main(args: list[str] | None = None) -> int:
         text = rep.to_markdown(None if ns.markdown == "-" else ns.markdown)
         if ns.markdown == "-":
             print(text, end="")
+    elif ns.html:
+        rep.to_html(ns.html)
+        print(f"HTML report written to {ns.html}")
     else:
         _show(rep)
     if ns.ci:

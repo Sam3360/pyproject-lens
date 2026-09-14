@@ -51,3 +51,15 @@ class AnalyzeTests(unittest.TestCase):
         with self.assertRaises(SystemExit) as err:
             main([".", "--json", "-", "--markdown", "-"])
         self.assertEqual(err.exception.code, 2)
+
+    def test_html_report_is_escaped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rep = analyze(root)
+            rep.sections[0].add("warning", "<check this>")
+            out = root / "report.html"
+            text = rep.to_html(out)
+            saved = out.read_text(encoding="utf-8")
+        self.assertIn("<!doctype html>", text)
+        self.assertIn("&lt;check this&gt;", text)
+        self.assertEqual(text, saved)
