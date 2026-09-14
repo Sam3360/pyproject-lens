@@ -18,6 +18,15 @@ from .models import Report, Section
 
 SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", "build", "dist", ".tox", ".mypy_cache"}
 STDLIB = set(getattr(sys, "stdlib_module_names", ()))
+IMPORT_NAMES = {
+    "PIL": "pillow",
+    "bs4": "beautifulsoup4",
+    "cv2": "opencv-python",
+    "dateutil": "python-dateutil",
+    "dotenv": "python-dotenv",
+    "sklearn": "scikit-learn",
+    "yaml": "pyyaml",
+}
 
 
 def _python_files(root: Path) -> list[Path]:
@@ -35,6 +44,11 @@ def _read_toml(path: Path) -> dict[str, Any]:
             return tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError):
         return {}
+
+
+def _project(config: dict[str, Any]) -> dict[str, Any]:
+    data = config.get("project", {})
+    return data if isinstance(data, dict) else {}
 
 
 def _top_level_imports(files: list[Path]) -> set[str]:
@@ -59,7 +73,7 @@ def _distribution_name(value: str) -> str:
 def _packaging(root: Path, config: dict[str, Any]) -> Section:
     section = Section("Packaging")
     pyproject = root / "pyproject.toml"
-    project = config.get("project", {})
+    project = _project(config)
     if not pyproject.exists():
         section.score = 30
         section.add("warning", "No pyproject.toml found.", "Add one to describe how your project is built.")
@@ -67,6 +81,7 @@ def _packaging(root: Path, config: dict[str, Any]) -> Section:
     if not config:
         section.score = 45
         section.add("error", "pyproject.toml could not be read.", "Check its TOML syntax.", "pyproject.toml")
+        return section
     if not project.get("name"):
         section.score -= 20
         section.add("warning", "Project name is missing.", "Set project.name in pyproject.toml.", "pyproject.toml")
@@ -81,7 +96,8 @@ def _packaging(root: Path, config: dict[str, Any]) -> Section:
 
 def _dependencies(root: Path, config: dict[str, Any], files: list[Path]) -> Section:
     section = Section("Dependencies")
-    declared = {_distribution_name(item) for item in config.get("project", {}).get("dependencies", [])}
+    deps = _project(config).get("dependencies", [])
+    declared = {_distribution_name(item) for item in deps if isinstance(item, str)}
     imports = _top_level_imports(files)
     local = {path.stem for path in files}
     for file in files:
@@ -90,7 +106,7 @@ def _dependencies(root: Path, config: dict[str, Any], files: list[Path]) -> Sect
         except ValueError:
             continue
         local.update(part for part in relative.parts[:-1] if part not in {"src", "tests"})
-    missing = sorted(name for name in imports if name not in STDLIB and name not in local and name.replace("_", "-") not in declared)
+    missing = sorted(name for name in imports if name not in STDLIB and name not in local and IMPORT_NAMES.get(name, name.replace("_", "-")).lower() not in declared)
     if missing:
         section.score -= min(45, 10 * len(missing))
         for name in missing[:8]:
@@ -103,7 +119,8 @@ def _dependencies(root: Path, config: dict[str, Any], files: list[Path]) -> Sect
 
 def _compatibility(config: dict[str, Any], files: list[Path]) -> Section:
     section = Section("Python compatibility")
-    requires = config.get("project", {}).get("requires-python", "")
+    requires = _project(config).get("requires-python", "")
+    requires = requires if isinstance(requires, str) else ""
     uses_match = False
     for file in files:
         try:

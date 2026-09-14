@@ -6,7 +6,7 @@ import argparse
 from pathlib import Path
 import sys
 
-from .analyzers import analyze
+from .analyzers import _read_toml, analyze
 from .models import Report
 
 
@@ -56,11 +56,11 @@ def main(args: list[str] | None = None) -> int:
     if ns.ci:
         score = ns.minimum_score
         if score is None:
-            import tomllib
             try:
-                with (Path(ns.path) / "pyproject.toml").open("rb") as f:
-                    score = tomllib.load(f).get("tool", {}).get("pyproject-lens", {}).get("minimum_score", 0)
-            except (OSError, tomllib.TOMLDecodeError):
+                data = _read_toml(Path(ns.path) / "pyproject.toml")
+                score = data.get("tool", {}).get("pyproject-lens", {}).get("minimum_score", 0)
+                score = score if isinstance(score, int) else 0
+            except (AttributeError, OSError):
                 score = 0
         if rep.score < score:
             print(f"CI FAILED: score {rep.score} is below minimum_score {score}", file=sys.stderr)

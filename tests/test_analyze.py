@@ -63,3 +63,28 @@ class AnalyzeTests(unittest.TestCase):
         self.assertIn("<!doctype html>", text)
         self.assertIn("&lt;check this&gt;", text)
         self.assertEqual(text, saved)
+
+    def test_dependency_alias_does_not_warn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pyproject.toml").write_text('[project]\nname = "demo"\ndependencies = ["PyYAML"]\n')
+            (root / "app.py").write_text("import yaml\n")
+            rep = analyze(root)
+        deps = next(sec for sec in rep.sections if sec.name == "Dependencies")
+        self.assertEqual(deps.findings, [])
+
+    def test_broken_toml_gives_one_packaging_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pyproject.toml").write_text("[project\n")
+            rep = analyze(root)
+        pack = next(sec for sec in rep.sections if sec.name == "Packaging")
+        self.assertEqual(pack.score, 45)
+        self.assertEqual(len(pack.findings), 1)
+
+    def test_ci_ignores_text_score_in_config(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pyproject.toml").write_text('[tool.pyproject-lens]\nminimum_score = "eighty"\n')
+            code = main([str(root), "--ci"])
+        self.assertEqual(code, 0)
