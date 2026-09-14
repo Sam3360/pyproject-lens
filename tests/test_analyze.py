@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from pyproject_lens import analyze
+from pyproject_lens.cli import main
 
 
 class AnalyzeTests(unittest.TestCase):
@@ -39,3 +40,14 @@ class AnalyzeTests(unittest.TestCase):
         testing = next(section for section in report.sections if section.name == "Testing")
         self.assertEqual(testing.score, 55)
         self.assertIn("No test files", testing.findings[0].message)
+
+    def test_markdown_has_plain_separators(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            text = analyze(tmp).to_markdown()
+        self.assertIn(" - ", text)
+        self.assertNotIn("â", text)
+
+    def test_cli_allows_one_output_type(self) -> None:
+        with self.assertRaises(SystemExit) as err:
+            main([".", "--json", "-", "--markdown", "-"])
+        self.assertEqual(err.exception.code, 2)

@@ -36,39 +36,39 @@ class Report:
     def score(self) -> int:
         if not self.sections:
             return 100
-        return round(sum(section.score for section in self.sections) / len(self.sections))
+        return round(sum(sec.score for sec in self.sections) / len(self.sections))
 
     @property
     def findings(self) -> list[Finding]:
-        return [finding for section in self.sections for finding in section.findings]
+        return [item for sec in self.sections for item in sec.findings]
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "path": str(self.path),
             "score": self.score,
             "files_scanned": self.files_scanned,
-            "sections": [asdict(section) for section in self.sections],
+            "sections": [asdict(sec) for sec in self.sections],
         }
 
-    def to_json(self, output: str | Path | None = None) -> str:
+    def to_json(self, out: str | Path | None = None) -> str:
         text = json.dumps(self.to_dict(), indent=2) + "\n"
-        if output:
-            Path(output).write_text(text, encoding="utf-8")
+        if out:
+            Path(out).write_text(text, encoding="utf-8")
         return text
 
-    def to_markdown(self, output: str | Path | None = None) -> str:
-        lines = [f"# pyproject-lens report", "", f"**Project:** `{self.path.name}`", f"**Health:** {self.score}/100", ""]
-        for section in self.sections:
-            lines.extend([f"## {section.name} — {section.score}/100", ""])
-            if not section.findings:
+    def to_markdown(self, out: str | Path | None = None) -> str:
+        lines = ["# pyproject-lens report", "", f"**Project:** `{self.path.name}`", f"**Health:** {self.score}/100", ""]
+        for sec in self.sections:
+            lines.extend([f"## {sec.name} - {sec.score}/100", ""])
+            if not sec.findings:
                 lines.extend(["No issues detected.", ""])
                 continue
-            for finding in section.findings:
-                detail = f" — {finding.recommendation}" if finding.recommendation else ""
-                location = f" (`{finding.path}`)" if finding.path else ""
-                lines.append(f"- **{finding.level.upper()}**{location}: {finding.message}{detail}")
+            for item in sec.findings:
+                tip = f" - {item.recommendation}" if item.recommendation else ""
+                loc = f" (`{item.path}`)" if item.path else ""
+                lines.append(f"- **{item.level.upper()}**{loc}: {item.message}{tip}")
             lines.append("")
         text = "\n".join(lines)
-        if output:
-            Path(output).write_text(text, encoding="utf-8")
+        if out:
+            Path(out).write_text(text, encoding="utf-8")
         return text
