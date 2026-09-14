@@ -1,5 +1,7 @@
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 
 from pyproject_lens import analyze
@@ -48,8 +50,9 @@ class AnalyzeTests(unittest.TestCase):
         self.assertNotIn("â", text)
 
     def test_cli_allows_one_output_type(self) -> None:
-        with self.assertRaises(SystemExit) as err:
-            main([".", "--json", "-", "--markdown", "-"])
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as err:
+                main([".", "--json", "-", "--markdown", "-"])
         self.assertEqual(err.exception.code, 2)
 
     def test_html_report_is_escaped(self) -> None:
@@ -97,3 +100,21 @@ class AnalyzeTests(unittest.TestCase):
             (root / "pyproject.toml").write_text('[tool.pyproject-lens]\nminimum_score = "eighty"\n')
             code = main([str(root), "--ci"])
         self.assertEqual(code, 0)
+
+    def test_env_needs_an_ignore_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".env").write_text("TOKEN=not-real\n")
+            (root / ".gitignore").write_text("__pycache__/\n")
+            rep = analyze(root)
+        sec = next(sec for sec in rep.sections if sec.name == "Security")
+        self.assertIn("not clearly ignored", sec.findings[0].message)
+
+    def test_ignored_env_does_not_warn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".env").write_text("TOKEN=not-real\n")
+            (root / ".gitignore").write_text(".env\n")
+            rep = analyze(root)
+        sec = next(sec for sec in rep.sections if sec.name == "Security")
+        self.assertEqual(sec.findings, [])

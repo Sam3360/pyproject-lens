@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from fnmatch import fnmatch
 import re
 import subprocess
 import sys
@@ -199,9 +200,14 @@ def _security(root: Path, files: list[Path]) -> Section:
                 if any(keyword.arg == "shell" and isinstance(keyword.value, ast.Constant) and keyword.value.value is True for keyword in node.keywords):
                     section.score -= 15
                     section.add("warning", "subprocess call with shell=True detected.", "Prefer argument lists and validate any input passed to a shell.", f"{file.relative_to(root)}:{node.lineno}")
-    if (root / ".env").exists() and not (root / ".gitignore").exists():
+    env = root / ".env"
+    ignore = root / ".gitignore"
+    pats = []
+    if ignore.exists():
+        pats = [line.strip().lstrip("/") for line in ignore.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip() and not line.startswith("#")]
+    if env.exists() and not any(fnmatch(".env", pat) for pat in pats):
         section.score -= 15
-        section.add("warning", ".env exists and there is no .gitignore.", "Keep environment files out of version control.", ".env")
+        section.add("warning", ".env is not clearly ignored.", "Add .env to .gitignore so it does not get committed.", ".env")
     section.score = max(0, section.score)
     return section
 
