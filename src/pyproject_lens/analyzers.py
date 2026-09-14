@@ -126,9 +126,10 @@ def _compatibility(config: dict[str, Any], files: list[Path]) -> Section:
     requires = _project(config).get("requires-python", "")
     requires = requires if isinstance(requires, str) else ""
     uses_match = False
+    match = getattr(ast, "Match", None)
     for file in files:
         try:
-            uses_match |= any(isinstance(node, ast.Match) for node in ast.walk(ast.parse(file.read_text(encoding="utf-8"))))
+            uses_match |= bool(match and any(isinstance(node, match) for node in ast.walk(ast.parse(file.read_text(encoding="utf-8")))))
         except (OSError, UnicodeDecodeError, SyntaxError):
             continue
     if uses_match and re.search(r">=3\.(?:[0-9]|10)\b", requires) and not re.search(r">=3\.(?:1[0-9]|[2-9][0-9])\b", requires):

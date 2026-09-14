@@ -1,6 +1,7 @@
 import io
 import tempfile
 import unittest
+from unittest.mock import patch
 from contextlib import redirect_stderr
 from pathlib import Path
 
@@ -118,3 +119,12 @@ class AnalyzeTests(unittest.TestCase):
             rep = analyze(root)
         sec = next(sec for sec in rep.sections if sec.name == "Security")
         self.assertEqual(sec.findings, [])
+
+    def test_compatibility_works_without_match_node(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "app.py").write_text("print('hi')\n")
+            with patch("pyproject_lens.analyzers.ast.Match", None, create=True):
+                rep = analyze(root)
+        sec = next(sec for sec in rep.sections if sec.name == "Python compatibility")
+        self.assertEqual(sec.score, 80)
