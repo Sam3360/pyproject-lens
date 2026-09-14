@@ -51,8 +51,8 @@ def _project(config: dict[str, Any]) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _top_level_imports(files: list[Path]) -> set[str]:
-    imports: set[str] = set()
+def _imports(root: Path, files: list[Path]) -> dict[str, str]:
+    found: dict[str, str] = {}
     for file in files:
         try:
             tree = ast.parse(file.read_text(encoding="utf-8"), filename=str(file))
@@ -60,10 +60,13 @@ def _top_level_imports(files: list[Path]) -> set[str]:
             continue
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
-                imports.update(name.name.split(".")[0] for name in node.names)
+                for name in node.names:
+                    top = name.name.split(".")[0]
+                    found.setdefault(top, f"{file.relative_to(root).as_posix()}:{node.lineno}")
             elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-                imports.add(node.module.split(".")[0])
-    return imports
+                top = node.module.split(".")[0]
+                found.setdefault(top, f"{file.relative_to(root).as_posix()}:{node.lineno}")
+    return found
 
 
 def _distribution_name(value: str) -> str:
@@ -98,7 +101,7 @@ def _dependencies(root: Path, config: dict[str, Any], files: list[Path]) -> Sect
     section = Section("Dependencies")
     deps = _project(config).get("dependencies", [])
     declared = {_distribution_name(item) for item in deps if isinstance(item, str)}
-    imports = _top_level_imports(files)
+    imports = _imports(root, files)
     local = {path.stem for path in files}
     for file in files:
         try:
@@ -110,7 +113,7 @@ def _dependencies(root: Path, config: dict[str, Any], files: list[Path]) -> Sect
     if missing:
         section.score -= min(45, 10 * len(missing))
         for name in missing[:8]:
-            section.add("warning", f"'{name}' is imported but not declared.", "Add it to project.dependencies if it is a runtime dependency.")
+            section.add("warning", f"'{name}' is imported but not declared.", "Add it to project.dependencies if it is a runtime dependency.", imports[name])
     if (root / "requirements.txt").exists() and not declared:
         section.score -= 10
         section.add("info", "requirements.txt exists but project.dependencies is empty.", "Consider keeping runtime dependencies in pyproject.toml.")

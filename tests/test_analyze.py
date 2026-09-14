@@ -73,6 +73,15 @@ class AnalyzeTests(unittest.TestCase):
         deps = next(sec for sec in rep.sections if sec.name == "Dependencies")
         self.assertEqual(deps.findings, [])
 
+    def test_missing_dependency_has_import_location(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src").mkdir()
+            (root / "src" / "app.py").write_text("\n\nimport requestz\n")
+            rep = analyze(root)
+        deps = next(sec for sec in rep.sections if sec.name == "Dependencies")
+        self.assertEqual(deps.findings[0].path, "src/app.py:3")
+
     def test_broken_toml_gives_one_packaging_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
