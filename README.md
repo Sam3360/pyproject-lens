@@ -7,7 +7,7 @@
 It is made for that first ten seconds when you open a project and think: *is this thing okay, or is it hiding problems?*
 
 ```bash
-pip install pyproject-lens
+pip install -U pyproject-lens
 pyproject-lens .
 ```
 
